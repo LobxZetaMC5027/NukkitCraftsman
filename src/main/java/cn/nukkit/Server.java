@@ -33,6 +33,7 @@ import cn.nukkit.level.format.leveldb.LevelDB;
 import cn.nukkit.level.format.mcregion.McRegion;
 import cn.nukkit.level.generator.Flat;
 import cn.nukkit.level.generator.Generator;
+import cn.nukkit.level.generator.Nether;
 import cn.nukkit.level.generator.Normal;
 import cn.nukkit.level.generator.biome.Biome;
 import cn.nukkit.math.NukkitMath;
@@ -415,7 +416,8 @@ public class Server {
         Generator.addGenerator(Flat.class, "flat", Generator.TYPE_FLAT);
         Generator.addGenerator(Normal.class, "normal", Generator.TYPE_INFINITE);
         Generator.addGenerator(Normal.class, "default", Generator.TYPE_INFINITE);
-        //todo: add old generator and hell generator
+        Generator.addGenerator(Nether.class, "nether", Nether.TYPE_NETHER);
+        Generator.addGenerator(Nether.class, "hell", Nether.TYPE_NETHER);
 
         for (String name : ((Map<String, Object>) this.getConfig("worlds", new HashMap<>())).keySet()) {
             if (!this.loadLevel(name)) {
@@ -472,6 +474,16 @@ public class Server {
             this.forceShutdown();
 
             return;
+        }
+
+        // Auto-load or generate the Nether world
+        String netherName = this.getPropertyString("nether-world-name", "nether");
+        if (!this.loadLevel(netherName)) {
+            this.generateLevel(netherName, this.getDefaultLevel().getSeed(), Nether.class);
+        }
+        Level netherLevel = this.getLevelByName(netherName);
+        if (netherLevel != null) {
+            netherLevel.setDimension(Level.DIMENSION_NETHER);
         }
 
         if ((int) this.getConfig("ticks-per.autosave", 6000) > 0) {
