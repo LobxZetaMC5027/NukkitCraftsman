@@ -9,8 +9,8 @@ import cn.nukkit.level.Level;
 import cn.nukkit.math.Vector3;
 
 /**
- * author: MagicDroidX
- * Nukkit Project
+ * Flint and Steel - creates fire and nether portals
+ * Updated to support portal creation in both X and Z directions
  */
 public class ItemFlintSteel extends ItemTool {
 
@@ -35,53 +35,13 @@ public class ItemFlintSteel extends ItemTool {
     public boolean onActivate(Level level, Player player, Block block, Block target, int face, double fx, double fy, double fz) {
         if (block.getId() == AIR && (target instanceof BlockSolid)) {
             if (target.getId() == OBSIDIAN) {
-                int targetX = target.getFloorX();
-                int targetY = target.getFloorY();
-                int targetZ = target.getFloorZ();
-                int x_max = targetX;
-                int x_min = targetX;
-                int x;
-                for (x = targetX + 1; level.getBlock(new Vector3(x, targetY, targetZ)).getId() == OBSIDIAN; x++) {
-                    x_max++;
+                // Try creating portal in Z direction (north-south)
+                if (tryCreatePortal(level, target, true)) {
+                    return true;
                 }
-                for (x = targetX - 1; level.getBlock(new Vector3(x, targetY, targetZ)).getId() == OBSIDIAN; x--) {
-                    x_min--;
-                }
-                int count_x = x_max - x_min + 1;
-                int z_max = targetZ;
-                int z_min = targetZ;
-                int z;
-                for (z = targetZ + 1; level.getBlock(new Vector3(targetX, targetY, z)).getId() == OBSIDIAN; z++) {
-                    z_max++;
-                }
-                for (z = targetZ - 1; level.getBlock(new Vector3(targetX, targetY, z)).getId() == OBSIDIAN; z--) {
-                    z_min--;
-                }
-                int count_z = z_max - z_min + 1;
-                int z_max_y = targetY;
-                int z_min_y = targetY;
-                int y;
-                for (y = targetY; level.getBlock(new Vector3(targetX, y, z_max)).getId() == OBSIDIAN; y++) {
-                    z_max_y++;
-                }
-                for (y = targetY; level.getBlock(new Vector3(targetX, y, z_min)).getId() == OBSIDIAN; y++) {
-                    z_min_y++;
-                }
-                int y_max = Math.min(z_max_y, z_min_y) - 1;
-                int count_y = y_max - targetY + 2;
-                if ((count_x >= 4 && count_x <= 23 || count_z >= 4 && count_z <= 23) && count_y >= 5 && count_y <= 23) {
-                    int count_up = 0;
-                    for (int up_z = z_min; level.getBlock(new Vector3(targetX, y_max, up_z)).getId() == OBSIDIAN && up_z <= z_max; up_z++) {
-                        count_up++;
-                    }
-                    if (count_up == count_z) {
-                        for (int block_z = z_min + 1; block_z < z_max; block_z++) {
-                            for (int block_y = targetY + 1; block_y < y_max; block_y++) {
-                                level.setBlock(new Vector3(targetX, block_y, block_z), new BlockNetherPortal());
-                            }
-                        }
-                        return true;
-                    }
+                // Try creating portal in X direction (east-west)
+                if (tryCreatePortal(level, target, false)) {
+                    return true;
                 }
             }
             BlockFire fire = new BlockFire();
@@ -106,6 +66,97 @@ public class ItemFlintSteel extends ItemTool {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Try to create a nether portal frame
+     * @param level The level
+     * @param target The obsidian block that was clicked
+     * @param zAxis True to try Z-axis portal, false for X-axis
+     * @return True if portal was successfully created
+     */
+    private boolean tryCreatePortal(Level level, Block target, boolean zAxis) {
+        int targetX = target.getFloorX();
+        int targetY = target.getFloorY();
+        int targetZ = target.getFloorZ();
+
+        // Find the horizontal extent of obsidian
+        int min1, max1;
+        if (zAxis) {
+            min1 = targetZ;
+            max1 = targetZ;
+            for (int z = targetZ + 1; level.getBlock(new Vector3(targetX, targetY, z)).getId() == OBSIDIAN; z++) {
+                max1 = z;
+            }
+            for (int z = targetZ - 1; level.getBlock(new Vector3(targetX, targetY, z)).getId() == OBSIDIAN; z--) {
+                min1 = z;
+            }
+        } else {
+            min1 = targetX;
+            max1 = targetX;
+            for (int x = targetX + 1; level.getBlock(new Vector3(x, targetY, targetZ)).getId() == OBSIDIAN; x++) {
+                max1 = x;
+            }
+            for (int x = targetX - 1; level.getBlock(new Vector3(x, targetY, targetZ)).getId() == OBSIDIAN; x--) {
+                min1 = x;
+            }
+        }
+
+        int width = max1 - min1 + 1;
+        if (width < 4 || width > 23) return false;
+
+        // Find the top of the frame by checking both sides
+        int minTop = 127, maxTop = 0;
+        if (zAxis) {
+            for (int y = targetY; level.getBlock(new Vector3(targetX, y, min1)).getId() == OBSIDIAN; y++) {
+                minTop = y;
+            }
+            for (int y = targetY; level.getBlock(new Vector3(targetX, y, max1)).getId() == OBSIDIAN; y++) {
+                maxTop = y;
+            }
+        } else {
+            for (int y = targetY; level.getBlock(new Vector3(min1, y, targetZ)).getId() == OBSIDIAN; y++) {
+                minTop = y;
+            }
+            for (int y = targetY; level.getBlock(new Vector3(max1, y, targetZ)).getId() == OBSIDIAN; y++) {
+                maxTop = y;
+            }
+        }
+
+        int topY = Math.min(minTop, maxTop);
+        int height = topY - targetY + 1;
+        if (height < 5 || height > 23) return false;
+
+        // Check top row of obsidian
+        int topCount = 0;
+        if (zAxis) {
+            for (int z = min1; level.getBlock(new Vector3(targetX, topY, z)).getId() == OBSIDIAN && z <= max1; z++) {
+                topCount++;
+            }
+        } else {
+            for (int x = min1; level.getBlock(new Vector3(x, topY, targetZ)).getId() == OBSIDIAN && x <= max1; x++) {
+                topCount++;
+            }
+        }
+
+        if (topCount != width) return false;
+
+        // Fill inside with portal blocks
+        if (zAxis) {
+            for (int z = min1 + 1; z < max1; z++) {
+                for (int y = targetY + 1; y < topY; y++) {
+                    level.setBlock(new Vector3(targetX, y, z), new BlockNetherPortal());
+                }
+            }
+        } else {
+            for (int x = min1 + 1; x < max1; x++) {
+                for (int y = targetY + 1; y < topY; y++) {
+                    level.setBlock(new Vector3(x, y, targetZ), new BlockNetherPortal());
+                }
+            }
+        }
+
+        return true;
     }
 
     @Override
