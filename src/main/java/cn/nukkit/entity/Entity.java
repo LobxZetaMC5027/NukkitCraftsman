@@ -875,6 +875,14 @@ public abstract class Entity extends Location implements Metadatable {
         this.ticksLived += tickDiff;
         TimingsHistory.activatedEntityTicks++;
 
+        // Decrease portal ticks when not in portal
+        if (this.inPortalTicks > 0) {
+            this.inPortalTicks -= tickDiff;
+            if (this.inPortalTicks < 0) {
+                this.inPortalTicks = 0;
+            }
+        }
+
         Timings.entityBaseTickTimer.stopTiming();
         return hasUpdate;
     }
